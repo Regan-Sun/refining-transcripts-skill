@@ -40,6 +40,8 @@ class SkillContractTests(unittest.TestCase):
 
     def test_chunk_ownership_not_text_deduplication(self):
         self.require(section('长文本分块协议'), '主体范围', '参考上下文', '只输出主体范围', '原文位置', '不得按文字相似度')
+        # 仅拦截已知的参考段规则反转，不作为通用语义验证。
+        self.require(section('长文本分块协议'), '参考内容只用于理解，不再次输出')
 
     def test_oversize_case_and_streaming_review(self):
         self.require(section('长文本分块协议'), '超长案例', '完整句或问答回合', '同一案例续段', '按顺序分段回读')
@@ -61,6 +63,27 @@ class SkillContractTests(unittest.TestCase):
         state = section('完成状态')
         self.require(state, '内容状态：', '处理范围：', '音频核验：', '文件验收：', '处理中', '未核听', '待核优先', '不是文件交付完成')
         self.assertFalse('若交付 Word，还必须满足现有 Word 文件与视觉验收要求' in state)
+        self.require(state, '关键疑点已解决')
+
+    def test_speaker_labels_are_scoped_and_unreliable_merges_are_marked(self):
+        text = section('人名、术语、数字与说话人')
+        self.require(text, '仅在所属源文件内有效', '跨文件同号不等于同一人',
+                     '不再将该合并标签视为可靠身份', '切换边界也不明', '〔说话人待核〕')
+        self.assertNotIn('原转写把多人合并：继续使用', text)
+
+    def test_uncertainty_marker_preserves_readable_source(self):
+        self.require(section('人名、术语、数字与说话人'), '保留仍可辨认的原转写内容',
+                     '追加标记', '三百元〔数字待核〕', '确实无法辨认', '否定词')
+
+    def test_multi_file_overlap_requires_event_evidence(self):
+        self.require(section('长文本分块协议'), '多文件关系', '重复导出', '不同转写版本',
+                     '同一次发言', '内部保留各源位置', '合并待确认')
+
+    def test_t03_does_not_preload_the_restricted_source(self):
+        text = re.search(r'^## T03｜.*?(?=^## T04｜)', CASES, re.M | re.S).group(0)
+        self.require(text, '仅供测试执行器准备', '首轮不得包含P01—P08原文',
+                     '禁用绕过该入口的全文读取', '记为阻塞', '每次最多3个主体段落')
+        self.assertNotIn('用户要求：“精修整段小组讨论', text)
 
     def test_entity_correction_without_fact_rewrite(self):
         self.require(section('证据优先级'), '识别和书写错误', '同一对象', '内部依据', '无条件全局替换', '不能据此改写', '发言归属')
